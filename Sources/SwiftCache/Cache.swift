@@ -8,7 +8,7 @@ public final class Cache<Key: Hashable, Value> {
   private var keys = Set<Key>()
   
   private var _url: URL?
-  private var _encoder: JSONEncoder?
+  private var _encoder: JSONEncoder? = JSONEncoder()
   private var writeToURL: (() throws -> Void)?
   
   public init() {
