@@ -59,12 +59,12 @@ public extension Cache {
 }
 
 extension Cache: Codable where Key: Codable, Value: Codable {
-  var url: URL? {
+  public var url: URL? {
     get { _url }
     set { _url = newValue; setWriteToURL() }
   }
   
-  var encoder: JSONEncoder? {
+  public var encoder: JSONEncoder? {
     get { _encoder }
     set { _encoder = newValue; setWriteToURL() }
   }
