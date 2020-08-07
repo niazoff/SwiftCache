@@ -7,6 +7,10 @@ public final class Cache<Key: Hashable, Value> {
   
   private var keys = Set<Key>()
   
+  private var _url: URL?
+  private var _encoder: JSONEncoder?
+  private var writeToURL: (() throws -> Void)?
+  
   public init() {
     cache.delegate = cacheDelegate
   }
@@ -15,16 +19,33 @@ public final class Cache<Key: Hashable, Value> {
     cache.object(forKey: NSCacheKey(key))?.value
   }
   
-  public func set(_ value: Value, forKey key: Key) {
+  public func trySet(_ value: Value, forKey key: Key) throws {
     cache.setObject(NSCacheValue(value, key: key), forKey: NSCacheKey(key))
     keys.insert(key)
+    try writeToURL?()
   }
   
-  public func removeValue(forKey key: Key) {
+  public func tryRemoveValue(forKey key: Key) throws {
     cache.removeObject(forKey: NSCacheKey(key))
+    try writeToURL?()
   }
   
-  public func removeAllValues() { cache.removeAllObjects() }
+  public func tryRemoveAllValues() throws {
+    cache.removeAllObjects()
+    try writeToURL?()
+  }
+}
+
+public extension Cache {
+  func set(_ value: Value, forKey key: Key) {
+    try? trySet(value, forKey: key)
+  }
+  
+  func removeValue(forKey key: Key) {
+    try? tryRemoveValue(forKey: key)
+  }
+  
+  func removeAllValues() { try? tryRemoveAllValues() }
 }
 
 public extension Cache {
@@ -38,11 +59,31 @@ public extension Cache {
 }
 
 extension Cache: Codable where Key: Codable, Value: Codable {
+  var url: URL? {
+    get { _url }
+    set { _url = newValue; setWriteToURL() }
+  }
+  
+  var encoder: JSONEncoder? {
+    get { _encoder }
+    set { _encoder = newValue; setWriteToURL() }
+  }
+  
+  private struct EncodedValue: Codable {
+    let key: Key
+    let value: Value
+  }
+  
   public convenience init(from decoder: Decoder) throws {
     self.init()
     let container = try decoder.singleValueContainer()
     let values = try container.decode([EncodedValue].self)
     values.forEach { set($0.value, forKey: $0.key) }
+  }
+  
+  private func setWriteToURL() {
+    guard let url = url, let encoder = encoder else { return }
+    writeToURL = { try encoder.encode(self).write(to: url) }
   }
   
   public func encode(to encoder: Encoder) throws {
@@ -52,11 +93,6 @@ extension Cache: Codable where Key: Codable, Value: Codable {
   
   private func encodedValue(forKey key: Key) -> EncodedValue? {
     value(forKey: key).map { EncodedValue(key: key, value: $0) }
-  }
-  
-  private struct EncodedValue: Codable {
-    let key: Key
-    let value: Value
   }
 }
 
