@@ -8,8 +8,8 @@ public final class Cache<Key: Hashable, Value> {
   private var keys = Set<Key>()
   
   private var _url: URL?
-  private var _encoder: JSONEncoder? = JSONEncoder()
-  private var writeToURL: (() throws -> Void)?
+  private var _encoder = JSONEncoder()
+  private var writeData: (() throws -> Void)?
   
   public init() {
     cache.delegate = cacheDelegate
@@ -22,17 +22,17 @@ public final class Cache<Key: Hashable, Value> {
   public func trySet(_ value: Value, forKey key: Key) throws {
     cache.setObject(NSCacheValue(value, key: key), forKey: NSCacheKey(key))
     keys.insert(key)
-    try writeToURL?()
+    try writeData?()
   }
   
   public func tryRemoveValue(forKey key: Key) throws {
     cache.removeObject(forKey: NSCacheKey(key))
-    try writeToURL?()
+    try writeData?()
   }
   
   public func tryRemoveAllValues() throws {
     cache.removeAllObjects()
-    try writeToURL?()
+    try writeData?()
   }
 }
 
@@ -61,17 +61,23 @@ public extension Cache {
 extension Cache: Codable where Key: Codable, Value: Codable {
   public var url: URL? {
     get { _url }
-    set { _url = newValue; setWriteToURL() }
+    set { _url = newValue; setWriteData() }
   }
   
-  public var encoder: JSONEncoder? {
+  public var encoder: JSONEncoder {
     get { _encoder }
-    set { _encoder = newValue; setWriteToURL() }
+    set { _encoder = newValue; setWriteData() }
   }
   
   private struct EncodedValue: Codable {
     let key: Key
     let value: Value
+  }
+  
+  public convenience init(writeTo url: URL, encoder: JSONEncoder = JSONEncoder()) {
+    self.init()
+    self.url = url
+    self.encoder = encoder
   }
   
   public convenience init(from decoder: Decoder) throws {
@@ -81,9 +87,9 @@ extension Cache: Codable where Key: Codable, Value: Codable {
     values.forEach { set($0.value, forKey: $0.key) }
   }
   
-  private func setWriteToURL() {
-    guard let url = url, let encoder = encoder else { return }
-    writeToURL = { try encoder.encode(self).write(to: url) }
+  private func setWriteData() {
+    guard let url = url else { return }
+    writeData = { [encoder] in try encoder.encode(self).write(to: url) }
   }
   
   public func encode(to encoder: Encoder) throws {
